@@ -1,13 +1,17 @@
 #!/bin/bash
 
+cd $CARMEN_HOME/bin # compatibility problems without it
+
 LOG_FILE=/tmp/mpp.log
 
 # Start background processes
-~/carmen_lcad/bin/central &
+$CARMEN_HOME/bin/central &
 CENTRAL_PID=$!
+sleep 2
 
-~/carmen_lcad/bin/proccontrol ~/carmen_lcad/bin/process-navigate-volta-da-ufes-pid.ini &
+$CARMEN_HOME/bin/proccontrol $CARMEN_HOME/bin/process-navigate-volta-da-ufes-pid.ini &
 PROCCONTROL_PID=$!
+sleep 1
 
 # Define cleanup function
 cleanup() {
