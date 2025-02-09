@@ -1,2 +1,4 @@
 *
-!src/model_predictive_planner
+!.gitignore
+!src/model_predictive_planner**
+!*/
