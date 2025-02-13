@@ -557,6 +557,8 @@ simulate_car_from_parameters(TrajectoryDimensions &td,
 	tcp.sf = distance_traveled;
 	td.control_parameters = tcp;
 
+	cout << "Computed path with " << path.size() << " points" << endl;
+
 	return (path);
 }
 
