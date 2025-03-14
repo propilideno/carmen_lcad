@@ -17,6 +17,7 @@
 #include "model/global_state.h"
 #include "util.h"
 #include "model_predictive_planner_optimizer.h"
+#include "Clothoids.hh"
 
 #define LINEAR_ACCELERATION false
 
@@ -367,7 +368,6 @@ convert_to_carmen_robot_and_trailer_path_point_t(const carmen_robot_and_trailers
 	return (path_point);
 }
 
-
 double
 compute_path_via_simulation(carmen_robot_and_trailers_traj_point_t &robot_state, Command &command,
 		vector<carmen_robot_and_trailers_path_point_t> &path,
@@ -530,6 +530,39 @@ get_phi_spline(TrajectoryControlParameters tcp)
 	return (phi_spline);
 }
 
+G2lib::ClothoidCurve generate_clothoid(const carmen_robot_and_trailers_path_point_t start, const carmen_robot_and_trailers_path_point_t end) {
+    G2lib::ClothoidCurve clothoid;
+    clothoid.build_G1(start.x, start.y, start.theta, end.x, end.y, end.theta);
+    return clothoid;
+}
+
+void compute_plan_with_clothoids(
+    const carmen_robot_and_trailers_path_point_t &start_pose,
+		const carmen_robot_and_trailers_path_point_t &goal_pose,
+		double v_start,
+		double v_goal,
+		const carmen_robot_and_trailers_path_point_t &path,
+) {
+    G2lib::ClothoidCurve clothoid = generate_clothoid(start_pose, goal_pose);
+
+    double s_max = clothoid.length();
+		int points_interpol = 4;
+    for (double s = 0; s <= s_max; s += s_max / 4) {
+		for (int i = 1; i <= points_interpol; ++i) {
+        double x, y, theta, kappa;
+				double s = i * s_max / points_interpol;
+        clothoid.eval(s, x, y, theta, kappa);
+        
+        carmen_robot_and_trailers_path_point_t point;
+        point.x = x;
+        point.y = y;
+        point.theta = theta;
+        point.v = v_start + (v_goal - v_start) * (s / s_max);
+        point.phi = atan(kappa * GlobalState::robot_config.distance_between_front_and_rear_axles);
+        
+        path.push_back(point);
+    }
+}
 
 vector<carmen_robot_and_trailers_path_point_t>
 simulate_car_from_parameters(TrajectoryDimensions &td,
@@ -547,6 +580,20 @@ simulate_car_from_parameters(TrajectoryDimensions &td,
 
 	gsl_spline_free(phi_spline);
 
+	vector<carmen_robot_and_trailers_path_point_t> new_path = {};
+
+	for (int i = 1; i < path.size(); ++i) {
+		carmen_robot_and_trailers_path_point_t initial_posis = path[i - 1];
+		carmen_robot_and_trailers_path_point_t final_posis = path[i];
+
+		new_path.push_back(initial_posis);
+
+		// descobrir quais são as velocidades nos dois últimos parâmetros
+		compute_plan_with_clothoids(initial_posis, final_posis, 0, 0, new_path);
+	}
+
+	new_path.push_back(path[interpol_path.size() - 1]);
+
 	carmen_robot_and_trailers_path_point_t furthest_point;
 	td.dist = get_max_distance_in_path(path, furthest_point);	// @@@ Alberto: Por que nao o ultimo do ponto do path?
 	td.theta = atan2(furthest_point.y, furthest_point.x);
@@ -557,7 +604,7 @@ simulate_car_from_parameters(TrajectoryDimensions &td,
 	tcp.sf = distance_traveled;
 	td.control_parameters = tcp;
 
-	return (path);
+	return (new_path);
 }
 
 
