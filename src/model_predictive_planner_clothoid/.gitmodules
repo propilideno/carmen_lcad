@@ -1,3 +1,3 @@
-[submodule "src/model_predictive_planner_clothoid/submodules/Clothoids"]
+[submodule "./submodules/Clothoids"]
 	path = src/model_predictive_planner_clothoid/submodules/Clothoids
 	url = https://github.com/propilideno/Clothoids.git
