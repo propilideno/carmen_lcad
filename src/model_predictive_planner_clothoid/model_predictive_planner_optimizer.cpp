@@ -17,7 +17,6 @@
 #include "model/global_state.h"
 #include "util.h"
 #include "model_predictive_planner_optimizer.h"
-#include "Clothoids.hh"
 
 /* WORKAROUND: no matching function for call to ‘all_of'
  * The Clothoids library (source ) uses C-style character functions without proper namespacing */
