@@ -38,8 +38,13 @@ LFLAGS += 	-lgrid_mapping -lmap_io -lmap_util -lmap_interface -lparam_interface 
 		-ltask_manager_interface -lvoice_interface_interface
 
 #CLOTHOIDS
-IFLAGS += -I./submodules/Clothoids/lib/include -I./submodules/Clothoids/lib3rd/include
-LFLAGS += -L./submodules/Clothoids/lib/lib -L./submodules/Clothoids/lib3rd/lib -lClothoids_linux_static -lGenericContainer_linux_static -lLua_linux_static -lquarticRootsFlocke_linux_static -lUtilsLite_linux_static
+CLOTHOID_DIR          := ./submodules/Clothoids
+CLOTHOID_INC_DIR      := $(CLOTHOID_DIR)/lib/include
+CLOTHOID_LIB_DIR      := $(CLOTHOID_DIR)/lib/lib
+CLOTHOID_INC_DIR_3RD  := $(CLOTHOID_DIR)/lib3rd/include
+CLOTHOID_LIB_DIR_3RD  := $(CLOTHOID_DIR)/lib3rd/lib
+IFLAGS += -I$(CLOTHOID_INC_DIR) -I$(CLOTHOID_INC_DIR_3RD)
+LFLAGS += $(wildcard $(CLOTHOID_LIB_DIR)/*.a) $(wildcard $(CLOTHOID_LIB_DIR_3RD)/*.a)
 			
 UBUNTU_VERSION ="$(shell cat /etc/issue | grep Ubuntu | cut -c8-12)"
 #$(warning now we reached ifeq UBUNTU_VERSION=$(UBUNTU_VERSION))
