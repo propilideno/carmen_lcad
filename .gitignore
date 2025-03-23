@@ -1,4 +1,7 @@
 *
 !.gitignore
-!src/model_predictive_planner**
-# !*/
+!src/model_predictive_planner_clothoid/**
+!*/
+*.o
+*.a
+*.depend
