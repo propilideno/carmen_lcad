@@ -20,7 +20,6 @@
 
 /* WORKAROUND: no matching function for call to ‘all_of'
  * The Clothoids library (source ) uses C-style character functions without proper namespacing */
-#include <cctype>
 namespace Utils {
     using ::islower;
     using ::isupper;
