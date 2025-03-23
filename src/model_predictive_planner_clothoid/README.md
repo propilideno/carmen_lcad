@@ -9,7 +9,10 @@ For usage, open terminal and type `mpp`
 ## Setup
 
 ```
-git submodule update --init ./submodules/Clothoids 
+git submodule update --init --recursive ./submodules/Clothoids
+
+sudo apt install gem ninja-build
+sudo gem install colorize rubyzip
 ```
 
 ## Strategy
