@@ -39,7 +39,7 @@ LFLAGS += 	-lgrid_mapping -lmap_io -lmap_util -lmap_interface -lparam_interface 
 
 #CLOTHOIDS
 IFLAGS += -I./submodules/Clothoids/lib/include -I./submodules/Clothoids/lib3rd/include
-LFLAGS += -L./submodules/Clothoids/lib -L./submodules/Clothoids/lib3rd
+LFLAGS += -L./submodules/Clothoids/lib/lib -L./submodules/Clothoids/lib3rd/lib -lClothoids_linux_static -lGenericContainer_linux_static -lLua_linux_static -lquarticRootsFlocke_linux_static -lUtilsLite_linux_static
 			
 UBUNTU_VERSION ="$(shell cat /etc/issue | grep Ubuntu | cut -c8-12)"
 #$(warning now we reached ifeq UBUNTU_VERSION=$(UBUNTU_VERSION))
