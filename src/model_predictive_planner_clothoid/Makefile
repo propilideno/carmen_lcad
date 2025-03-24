@@ -36,6 +36,15 @@ LFLAGS += 	-lgrid_mapping -lmap_io -lmap_util -lmap_interface -lparam_interface 
 		-lrddf_interface -lmotion_planner_interface -lnavigator_gui_interface -llocalize_ackerman_core \
 		-lcollision_detection -lcarmodel -lgsl -lgslcblas -lm -lford_escape_hybrid_interface -lmoving_objects_interface \
 		-ltask_manager_interface -lvoice_interface_interface
+
+#CLOTHOIDS
+CLOTHOID_DIR          := ./submodules/Clothoids
+CLOTHOID_INC_DIR      := $(CLOTHOID_DIR)/lib/include
+CLOTHOID_LIB_DIR      := $(CLOTHOID_DIR)/lib/lib
+CLOTHOID_INC_DIR_3RD  := $(CLOTHOID_DIR)/lib3rd/include
+CLOTHOID_LIB_DIR_3RD  := $(CLOTHOID_DIR)/lib3rd/lib
+IFLAGS += -I$(CLOTHOID_INC_DIR) -I$(CLOTHOID_INC_DIR_3RD)
+LFLAGS += $(wildcard $(CLOTHOID_LIB_DIR)/*.a) $(wildcard $(CLOTHOID_LIB_DIR_3RD)/*.a)
 			
 UBUNTU_VERSION ="$(shell cat /etc/issue | grep Ubuntu | cut -c8-12)"
 #$(warning now we reached ifeq UBUNTU_VERSION=$(UBUNTU_VERSION))
