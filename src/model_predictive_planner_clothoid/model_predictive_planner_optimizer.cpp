@@ -380,16 +380,20 @@ convert_to_carmen_robot_and_trailer_path_point_t(const carmen_robot_and_trailers
 }
 
 double
-compute_path_via_simulation(carmen_robot_and_trailers_traj_point_t &robot_state, Command &command,
-		vector<carmen_robot_and_trailers_path_point_t> &path,
-		TrajectoryControlParameters tcp,
-		gsl_spline *phi_spline, double v0, double *i_trailer_theta, double delta_t)
+compute_path_via_simulation(
+	carmen_robot_and_trailers_traj_point_t &robot_state,
+	Command &command,
+	vector<carmen_robot_and_trailers_path_point_t> &path,
+	TrajectoryControlParameters tcp,
+	double v0,
+	double *i_trailer_theta,
+	double delta_t
+)
 {
-	gsl_interp_accel *acc = gsl_interp_accel_alloc();
-
 	robot_state.x = 0.0;
 	robot_state.y = 0.0;
 	robot_state.theta = 0.0;
+
 //	robot_state.trailer_theta[0] = i_beta;
 	for (size_t j = 0; j < MAX_NUM_TRAILERS; j++)
 		robot_state.trailer_theta[j] = i_trailer_theta[j];
@@ -404,6 +408,11 @@ compute_path_via_simulation(carmen_robot_and_trailers_traj_point_t &robot_state,
 	double distance_traveled = 0.0;
 	// Cada ponto na trajetoria marca uma posicao do robo e o delta_t para chegar aa proxima
 	path.push_back(convert_to_carmen_robot_and_trailer_path_point_t(robot_state, delta_t));
+
+	double L = GlobalState::robot_config.distance_between_front_and_rear_axles; // Distância entre eixos
+	double kappa_0 = tan(robot_state.phi) / L;  // Curvatura inicial
+	double alpha = 0.1;  // Taxa de variação da curvatura (ajustável)
+
 	for (t = delta_t; t < tcp.tt; t += delta_t)
 	{
 		if ((desired_v == 0.0) && LINEAR_ACCELERATION)
@@ -419,7 +428,9 @@ compute_path_via_simulation(carmen_robot_and_trailers_traj_point_t &robot_state,
 		else if (command.v < GlobalState::param_max_vel_reverse)
 			command.v = GlobalState::param_max_vel_reverse;
 
-		command.phi = gsl_spline_eval(phi_spline, t, acc);
+		double s = distance_traveled;  
+    double kappa = kappa_0 + alpha * s;
+    command.phi = atan(L * kappa);
 
 //		if ((GlobalState::behavior_selector_task == BEHAVIOR_SELECTOR_PARK_SEMI_TRAILER) ||
 //			(GlobalState::behavior_selector_task == BEHAVIOR_SELECTOR_PARK_TRUCK_SEMI_TRAILER))
@@ -454,7 +465,10 @@ compute_path_via_simulation(carmen_robot_and_trailers_traj_point_t &robot_state,
 			command.v = GlobalState::param_max_vel;
 		else if (command.v < GlobalState::param_max_vel_reverse)
 			command.v = GlobalState::param_max_vel_reverse;
-		command.phi = gsl_spline_eval(phi_spline, tcp.tt, acc);
+
+		double s = distance_traveled;  
+    double kappa = kappa_0 + alpha * s;
+    command.phi = atan(L * kappa);
 
 		robot_state = carmen_libcarmodel_recalc_pos_ackerman(robot_state, command.v, command.phi, final_delta_t,
 				&distance_traveled, final_delta_t, GlobalState::robot_config, GlobalState::semi_trailer_config);
@@ -462,8 +476,6 @@ compute_path_via_simulation(carmen_robot_and_trailers_traj_point_t &robot_state,
 		// Cada ponto na trajetoria marca uma posicao do robo e o delta_t para chegar aa proxima
 		path.push_back(convert_to_carmen_robot_and_trailer_path_point_t(robot_state, 0.0));
 	}
-
-	gsl_interp_accel_free(acc);
 
 	return (distance_traveled);
 }
@@ -583,14 +595,9 @@ simulate_car_from_parameters(TrajectoryDimensions &td,
 	if (!tcp.valid)
 		return (path);
 
-	gsl_spline *phi_spline = get_phi_spline(tcp);
-
 	Command command;
 	carmen_robot_and_trailers_traj_point_t robot_state;
-	double distance_traveled = compute_path_via_simulation(robot_state, command, path, tcp, phi_spline, v0, i_trailer_theta, delta_t);
-
-	gsl_spline_free(phi_spline);
-
+	double distance_traveled = compute_path_via_simulation(robot_state, command, path, tcp, v0, i_trailer_theta, delta_t);
 	vector<carmen_robot_and_trailers_path_point_t> new_path = {};
 
 	for (int i = 1; i < path.size(); ++i) {
