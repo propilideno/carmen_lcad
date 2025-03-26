@@ -553,11 +553,23 @@ get_phi_spline(TrajectoryControlParameters tcp)
 	return (phi_spline);
 }
 
-G2lib::ClothoidCurve generate_clothoid(const carmen_robot_and_trailers_path_point_t &start, const carmen_robot_and_trailers_path_point_t &end) {
-    G2lib::ClothoidCurve clothoid("");
-    clothoid.build_G1(start.x, start.y, start.theta, end.x, end.y, end.theta);
-    return clothoid;
-}
+G2lib::ClothoidCurve generate_clothoid(
+  const carmen_robot_and_trailers_path_point_t &start,
+  const carmen_robot_and_trailers_path_point_t &end
+) {
+  G2lib::ClothoidCurve clothoid(""); 
+
+  // Build a G1 clothoid from (x0, y0, theta0) to (x1, y1, theta1).
+  clothoid.build_G1(start.x, start.y, start.theta, end.x, end.y, end.theta); 
+
+  // Debug print
+  std::cout 
+    << "[generate_clothoid] Start("
+    << start.x << ", " << start.y << ", θ=" << start.theta << ") → "
+    << "End(" << end.x << ", " << end.y << ", θ=" << end.theta << ")\n"
+    << "  Clothoid length = " << clothoid.length() << "\n";
+  return clothoid;
+} 
 
 void compute_plan_with_clothoids(
     const carmen_robot_and_trailers_path_point_t &start_pose,
