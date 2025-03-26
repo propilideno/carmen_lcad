@@ -573,31 +573,48 @@ G2lib::ClothoidCurve generate_clothoid(
 
 void compute_plan_with_clothoids(
     const carmen_robot_and_trailers_path_point_t &start_pose,
-		const carmen_robot_and_trailers_path_point_t &goal_pose,
-		double v_start,
-		double v_goal,
-		vector<carmen_robot_and_trailers_path_point_t> &path
+    const carmen_robot_and_trailers_path_point_t &goal_pose,
+    double v_start,
+    double v_goal,
+    std::vector<carmen_robot_and_trailers_path_point_t> &path
 ) {
+    // 1) Generate the clothoid
     G2lib::ClothoidCurve clothoid = generate_clothoid(start_pose, goal_pose);
+    double s_max = clothoid.length(); 
+// 2) Decide how many interpolation points you want
+int points_interpol = 20; // for debugging, try more than 4
+for (int i = 1; i <= points_interpol; ++i) {
+    double s = (static_cast<double>(i) / points_interpol) * s_max;
 
-    double s_max = clothoid.length();
-		int points_interpol = 4;
+    // 3) Evaluate the clothoid: get (x, y, theta, kappa)
+    double x, y, theta, kappa;
+    // "evaluate" is the method that returns x, y, orientation (theta), and curvature (kappa)
+    clothoid.evaluate(s, /*out*/theta, /*out*/kappa, /*out*/x, /*out*/y);
 
-		for (int i = 1; i <= points_interpol; ++i) {
-        double x, y, theta, kappa;
-				double s = i * s_max / points_interpol;
-        clothoid.eval(s, x, y);
-        
-        carmen_robot_and_trailers_path_point_t point;
-        point.x = x;
-        point.y = y;
-        point.theta = theta;
-        point.v = v_start + (v_goal - v_start) * (s / s_max);
-        point.phi = atan(kappa * GlobalState::robot_config.distance_between_front_and_rear_axles);
-        
-        path.push_back(point);
+    // 4) Construct the path point
+    carmen_robot_and_trailers_path_point_t point;
+    point.x     = x;
+    point.y     = y;
+    point.theta = theta;
+    // Interpolate velocity between v_start and v_goal (if that is what you want)
+    point.v = v_start + (v_goal - v_start) * (s / s_max);
+
+    // Convert curvature κ to steering angle φ = arctan(κ * wheelbase)
+    double wheelbase = GlobalState::robot_config.distance_between_front_and_rear_axles;
+    point.phi = std::atan(kappa * wheelbase);
+
+    // Debug printing to confirm curvature/angles are correct
+    std::cout << "[DEBUG] s=" << s
+              << "  x=" << x
+              << "  y=" << y
+              << "  theta=" << theta
+              << "  kappa=" << kappa
+              << "  phi=" << point.phi << std::endl;
+
+    // 5) Push into your path container
+    path.push_back(point);
     }
-}
+} 
 
 vector<carmen_robot_and_trailers_path_point_t>
 simulate_car_from_parameters(TrajectoryDimensions &td,
@@ -612,15 +629,21 @@ simulate_car_from_parameters(TrajectoryDimensions &td,
 	double distance_traveled = compute_path_via_simulation(robot_state, command, path, tcp, v0, i_trailer_theta, delta_t);
 	vector<carmen_robot_and_trailers_path_point_t> new_path = {};
 
-	for (int i = 1; i < path.size(); ++i) {
-		carmen_robot_and_trailers_path_point_t initial_posis = path[i - 1];
-		carmen_robot_and_trailers_path_point_t final_posis = path[i];
+    for (int i = 1; i < path.size(); ++i) {
+        carmen_robot_and_trailers_path_point_t initial_posis = path[i - 1];
+        carmen_robot_and_trailers_path_point_t final_posis = path[i];
 
-		new_path.push_back(initial_posis);
+        new_path.push_back(initial_posis);
 
-		// descobrir quais são as velocidades nos dois últimos parâmetros
-		compute_plan_with_clothoids(initial_posis, final_posis, 0, 0, new_path);
-	}
+        // Pass ACTUAL velocities from the original path
+        compute_plan_with_clothoids(
+            initial_posis, 
+            final_posis, 
+            initial_posis.v,  // Use initial point's velocity
+            final_posis.v,    // Use final point's velocity
+            new_path
+        );
+    }
 
 	new_path.push_back(path.back());
 
