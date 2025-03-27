@@ -76,12 +76,12 @@ using namespace std;
 typedef struct
 {
 	bool valid;
-	vector<double> k;	// nos do spline de phi
-	double s;	// comprimento da trajetoria ajustado no processo de otimizacao
-	double tt;	// tempo total da trajetoria ajustado no processo de otimizacao (eh dirivado de s)
-	double a;	// aceleracao ajustada durante a otimizacao (eh dirivado de s)
-	double vf;	// velocidade final apos a otimizacao
-	double sf;	// comprimento final apos a otimizacao
+	vector<double> k;	// Now represents curvature values (tan(phi)/wheelbase)
+	double s;	        // Total clothoid path length
+	double tt;	        // tt = (-v0 + sqrt(v0² + 2*a*s))/a
+	double a;	        // Constant acceleration
+	double vf;	        // Final velocity (calculated)
+	double sf;	        // Final distance (calculated)
 } TrajectoryControlParameters;
 
 typedef struct
