@@ -6,6 +6,7 @@
  */
 
 
+#include <algorithm>
 #include <stdio.h>
 #include <iostream>
 #include <math.h>
@@ -379,96 +380,86 @@ convert_to_carmen_robot_and_trailer_path_point_t(const carmen_robot_and_trailers
 	return (path_point);
 }
 
+void build_clothoid_path(
+    TrajectoryControlParameters &tcp,
+    G2lib::ClothoidList &clothoid_path,
+    double wheelbase
+) {
+    double x0 = 0.0, y0 = 0.0, theta0 = 0.0;
+    double kappa0 = tan(tcp.k[0])/wheelbase;
 
-double
-compute_path_via_simulation(carmen_robot_and_trailers_traj_point_t &robot_state, Command &command,
-		vector<carmen_robot_and_trailers_path_point_t> &path,
-		TrajectoryControlParameters tcp,
-		gsl_spline *phi_spline, double v0, double *i_trailer_theta, double delta_t)
-{
-	gsl_interp_accel *acc = gsl_interp_accel_alloc();
-
-	robot_state.x = 0.0;
-	robot_state.y = 0.0;
-	robot_state.theta = 0.0;
-//	robot_state.trailer_theta[0] = i_beta;
-	for (size_t j = 0; j < MAX_NUM_TRAILERS; j++)
-		robot_state.trailer_theta[j] = i_trailer_theta[j];
-
-	robot_state.v = v0;
-	robot_state.phi = tcp.k[0];
-
-	command.v = v0;
-	double multiple_delta_t = 3.0 * delta_t;
-	int i = 0;
-	double t;
-	double distance_traveled = 0.0;
-	// Cada ponto na trajetoria marca uma posicao do robo e o delta_t para chegar aa proxima
-	path.push_back(convert_to_carmen_robot_and_trailer_path_point_t(robot_state, delta_t));
-	for (t = delta_t; t < tcp.tt; t += delta_t)
-	{
-		if ((desired_v == 0.0) && LINEAR_ACCELERATION)
-		{
-			double a = tcp.a * ((tcp.tt - t) / tcp.tt);
-			command.v += a * delta_t;
-		}
-		else
-			command.v = v0 + tcp.a * t;
-
-		if (command.v > GlobalState::param_max_vel)
-			command.v = GlobalState::param_max_vel;
-		else if (command.v < GlobalState::param_max_vel_reverse)
-			command.v = GlobalState::param_max_vel_reverse;
-
-		command.phi = gsl_spline_eval(phi_spline, t, acc);
-
-//		if ((GlobalState::behavior_selector_task == BEHAVIOR_SELECTOR_PARK_SEMI_TRAILER) ||
-//			(GlobalState::behavior_selector_task == BEHAVIOR_SELECTOR_PARK_TRUCK_SEMI_TRAILER))
-		if ((GlobalState::semi_trailer_config.num_semi_trailers != 0) && (GlobalState::route_planner_state ==  EXECUTING_OFFROAD_PLAN))
-			robot_state = carmen_libcarmodel_recalc_pos_ackerman(robot_state, command.v, command.phi, delta_t,
-					&distance_traveled, delta_t / 10.0, GlobalState::robot_config, GlobalState::semi_trailer_config);
-		else
-			robot_state = carmen_libcarmodel_recalc_pos_ackerman(robot_state, command.v, command.phi, delta_t,
-					&distance_traveled, delta_t / 10.0, GlobalState::robot_config, GlobalState::semi_trailer_config);
-
-		// Cada ponto na trajetoria marca uma posicao do robo e o delta_t para chegar aa proxima
-		if (GlobalState::eliminate_path_follower && (i > 70))
-			delta_t = multiple_delta_t;
-		path.push_back(convert_to_carmen_robot_and_trailer_path_point_t(robot_state, delta_t));
-
-		i++;
-	}
-
-	if ((tcp.tt - (t -  delta_t)) > 0.0)
-	{
-		double final_delta_t = tcp.tt - (t - delta_t);
-
-		if ((desired_v == 0.0) && LINEAR_ACCELERATION)
-		{
-			double a = tcp.a * ((tcp.tt - t) / tcp.tt);
-			command.v += a * final_delta_t;
-		}
-		else
-			command.v = v0 + tcp.a * tcp.tt;
-
-		if (command.v > GlobalState::param_max_vel)
-			command.v = GlobalState::param_max_vel;
-		else if (command.v < GlobalState::param_max_vel_reverse)
-			command.v = GlobalState::param_max_vel_reverse;
-		command.phi = gsl_spline_eval(phi_spline, tcp.tt, acc);
-
-		robot_state = carmen_libcarmodel_recalc_pos_ackerman(robot_state, command.v, command.phi, final_delta_t,
-				&distance_traveled, final_delta_t, GlobalState::robot_config, GlobalState::semi_trailer_config);
-
-		// Cada ponto na trajetoria marca uma posicao do robo e o delta_t para chegar aa proxima
-		path.push_back(convert_to_carmen_robot_and_trailer_path_point_t(robot_state, 0.0));
-	}
-
-	gsl_interp_accel_free(acc);
-
-	return (distance_traveled);
+    for (size_t i = 1; i < tcp.k.size(); ++i) {
+        double kappa1 = tan(tcp.k[i])/wheelbase;
+        double dk = (kappa1 - kappa0)/(tcp.s/(tcp.k.size()-1));
+        
+        G2lib::ClothoidCurve segment{""};
+        segment.build(x0, y0, theta0, kappa0, dk, tcp.s/(tcp.k.size()-1));
+        
+        clothoid_path.push_back(segment);
+        
+        // Update for next segment
+        x0 = segment.x_end();
+        y0 = segment.y_end();
+        theta0 = segment.theta_end();
+        kappa0 = kappa1;
+    }
 }
 
+double compute_path_via_simulation(
+    carmen_robot_and_trailers_traj_point_t &robot_state,
+    Command &command,
+    vector<carmen_robot_and_trailers_path_point_t> &path,
+    TrajectoryControlParameters tcp,
+    G2lib::ClothoidList &clothoid_path,
+    double v0,
+    double *i_trailer_theta,
+    double delta_t
+) {
+    double wheelbase = GlobalState::robot_config.distance_between_front_and_rear_axles;
+    double distance_traveled = 0.0;
+
+    // Initialize robot state
+    robot_state.x = 0.0;
+    robot_state.y = 0.0;
+    robot_state.theta = 0.0;
+    std::memcpy(robot_state.trailer_theta, i_trailer_theta, 
+               sizeof(double)*MAX_NUM_TRAILERS);
+
+    // Build clothoid path
+    build_clothoid_path(tcp, clothoid_path, wheelbase);
+
+    for(double t = 0; t < tcp.tt; t += delta_t) {
+        // Calculate arc length using constant acceleration
+        double s = v0 * t + 0.5 * tcp.a * t * t;
+        s = std::clamp(s, 0.0, clothoid_path.length());
+
+        // Get position and curvature at current s
+        double x, y, theta, kappa;
+        clothoid_path.evaluate(s, theta, kappa, x, y);
+
+        // Convert curvature to steering angle
+        command.phi = atan(kappa * wheelbase);
+        command.v = v0 + tcp.a * t;
+
+        // Apply velocity constraints
+        command.v = std::clamp(command.v, 
+                             GlobalState::param_max_vel_reverse,
+                             GlobalState::param_max_vel);
+
+        // Update vehicle state
+        robot_state = carmen_libcarmodel_recalc_pos_ackerman(
+            robot_state, command.v, command.phi, delta_t,
+            &distance_traveled, delta_t/10.0,
+            GlobalState::robot_config, GlobalState::semi_trailer_config
+        );
+
+        // Store path point
+        path.push_back(convert_to_carmen_robot_and_trailer_path_point_t(
+            robot_state, delta_t
+        ));
+    }
+    return distance_traveled;
+}
 
 void
 print_phi_profile(gsl_spline *phi_spline, gsl_interp_accel *acc, double total_t, bool display_phi_profile)
@@ -545,31 +536,38 @@ get_phi_spline(TrajectoryControlParameters tcp)
 
 vector<carmen_robot_and_trailers_path_point_t>
 simulate_car_from_parameters(TrajectoryDimensions &td,
-		TrajectoryControlParameters &tcp, double v0, double *i_trailer_theta, double delta_t)
+                             TrajectoryControlParameters &tcp,
+                             double v0,
+                             double *i_trailer_theta,
+                             double delta_t)
 {
-	vector<carmen_robot_and_trailers_path_point_t> path = {};
-	if (!tcp.valid)
-		return (path);
+    vector<carmen_robot_and_trailers_path_point_t> path;
+    if (!tcp.valid) return path;
 
-	gsl_spline *phi_spline = get_phi_spline(tcp);
+    G2lib::ClothoidList clothoid_path{""};
+    Command command;
+    carmen_robot_and_trailers_traj_point_t robot_state;
 
-	Command command;
-	carmen_robot_and_trailers_traj_point_t robot_state;
-	double distance_traveled = compute_path_via_simulation(robot_state, command, path, tcp, phi_spline, v0, i_trailer_theta, delta_t);
+    // Calculate total path length using kinematic equation
+    tcp.s = v0 * tcp.tt + 0.5 * tcp.a * tcp.tt * tcp.tt;
 
-	gsl_spline_free(phi_spline);
+    double distance_traveled = compute_path_via_simulation(
+        robot_state, command, path, tcp, clothoid_path,
+        v0, i_trailer_theta, delta_t
+    );
 
-	carmen_robot_and_trailers_path_point_t furthest_point;
-	td.dist = get_max_distance_in_path(path, furthest_point);	// @@@ Alberto: Por que nao o ultimo do ponto do path?
-	td.theta = atan2(furthest_point.y, furthest_point.x);
-	td.d_yaw = furthest_point.theta;
-	td.phi_i = tcp.k[0];
-	td.v_i = v0;
-	tcp.vf = command.v;
-	tcp.sf = distance_traveled;
-	td.control_parameters = tcp;
+    // Post-processing (keep original)
+    carmen_robot_and_trailers_path_point_t furthest_point;
+    td.dist = get_max_distance_in_path(path, furthest_point);
+    td.theta = atan2(furthest_point.y, furthest_point.x);
+    td.d_yaw = furthest_point.theta;
+    td.phi_i = tcp.k[0];
+    td.v_i = v0;
+    tcp.vf = command.v;
+    tcp.sf = distance_traveled;
+    td.control_parameters = tcp;
 
-	return (path);
+    return path;
 }
 
 
